@@ -1,0 +1,245 @@
+Sub createTyscriptModel()
+'?긏깓긲?귽깑뼹
+    Dim macroName As String
+    '?긏깓긘?긣뼹
+    Dim macroSheetName As String
+    '둰?먩
+    Dim exportPath As String
+    'DB믦?룕뼹릶
+    Dim dbFileNameCnt As Long
+    '긘?긣뼹릶
+    Dim sheetNameCnt As Long
+    'Typescript
+    Dim typescript As String
+    
+    exportPath = Range("C2").Value & "\"
+    packageName = Range("D2").Value
+    
+    Worksheets("Typescript").Activate
+    typescript = Range("A1").Value
+    
+    'DB믦?룕릶롦벦
+    dbFileNameCnt = 1
+    '긘?긣뼹릶롦벦
+    sheetNameCnt = 1
+    
+    '?긏깓뼹
+    macroName = "Model렔벍맯맟.xlsm"
+    '?긏깓긘?긣뼹
+    macroSheetName = "뫮뤭"
+    
+    For i = 0 To doFileNameCnt
+        '?긏깓긲?귽깑궸멙댷
+        Workbooks(macroName).Activate
+        Worksheets(macroSheetName).Activate
+        '뫮뤭긲?귽깑뼹롦벦
+        targetFileName = Range("A" & i + 2).Value
+        '뫮뤭긘?긣뼹롦벦
+        targetSheetName = Range("B" & i + 2).Value
+        '뫮뤭긲?귽깑궸긲?귽깑멙댷
+        Workbooks(targetFileName).Activate
+        '뫮뤭긲?귽깑궸긘?긣멙댷
+        Worksheets(targetSheetName).Activate
+        
+        typescriptSource = readTable(typescript, exportPath)
+    Next
+End Sub
+Function readTable(typescript As String, exportPath As String)
+    '긡?긳깑뼹걁볷?뚭걂
+    Dim className As String
+    '긡?긳깑뼹걁뎟뚭걂
+    Dim classNameE As String
+    '긡?긳깑긇깋?릶
+    Dim colCnt As String
+    '긇깋?궕럑귏귡댧뭫
+    Dim startCol As String
+    '?뽞귏궴귕
+    Dim totalCategory As String
+    'Constructor
+    Dim totalConstructor As String
+    'In Contructor
+    Dim totalInConstructor As String
+    
+    Dim jpName As String
+    Dim enName As String
+    Dim changeEnName As String
+    Dim isPk As Boolean
+    Dim notNull As Boolean
+    Dim tableDataType As String
+    Dim dataLength As String
+    Dim biko As String
+    Dim thisCategory As String
+    Dim thisConstructor As String
+    Dim thisInContructor As String
+    
+    Dim controllerSource As String
+    Dim serviceSource As String
+    Dim modelSource As String
+    Dim repositorySource As String
+    
+    '긇깋?댧뭫먠믦
+    startCol = "C5"
+    '긡?긳깑뼹걁볷?뚭걂
+    className = Range("B1").Value
+    '긡?긳깑뼹걁뎟뚭걂
+    classNameE = changeCamel(Range("B2").Value, True)
+    
+    totalCategory = ""
+    totalConstructor = ""
+    totalInConstructor = ""
+    
+    '긇깋?릶롦벦
+    colCnt = Range(startCol, Range(startCol).End(xlDown)).Rows.Count
+    
+    '긇깋?릶빁궻깑?긵
+    For i = 5 To colCnt + 4
+        '긇깋?뼹걁볷?뚭걂
+        jpName = Range("C" & i).Value
+        '긇깋?뼹걁뎟뚭걂
+        enName = Range("D" & i).Value
+        '긇깋?뼹걁뎟뚭걂- 빾듂뚣
+        changeEnName = changeCamel(Range("D" & i).Value, False)
+        'PK뾎뼰
+        isPk = thisPk(Range("E" & i).Value)
+        '뷠?
+        notNull = thisNotNull(Range("F" & i).Value)
+        '긢???
+        tableDataType = Range("G" & i).Value
+        '똿릶
+        dataLength = Range("H" & i).Value
+        '뷈뛩
+        biko = Range("J" & i).Value
+        
+        thisCategory = createCategory(jpName, enName, changeEnName, isPk, notNull, tableDataType, dataLength, biko)
+        thisConstructor = createConstructor(changeEnName, tableDataType)
+        thisInContructor = createInConstructor(changeEnName, tableDataType)
+        
+        If i = colCnt + 4 Then
+            totalConstructor = totalConstructor & thisConstructor
+        Else
+            totalConstructor = totalConstructor & thisConstructor & ", "
+        End If
+        
+        totalInConstructor = totalInConstructor & thisInContructor
+        
+        totalCategory = totalCategory & thisCategory
+    Next
+    
+    modelSource = makeModel(className, classNameE, typescript, totalCategory, totalConstructor, totalInConstructor)
+    Call exportSource(modelSource, exportPath, classNameE)
+End Function
+Function createCategory(jpName As String, enName As String, changeEnName As String, isPk As Boolean, notNull As Boolean, tableDataType As String, dataLength As String, biko As String)
+    '긓긽깛긣
+    Dim comment As String
+    '걮ID
+    Dim annotactionId As String
+    '걮GenerateValue
+    Dim annotactionGenerat As String
+    '걮Size
+    Dim annotactionSzie As String
+    '@OneToOne
+    Dim annotationOnToOne As String
+    Dim oneToOneFlg As Boolean
+    'ColumnName
+    Dim annotactionColName As String
+    '?뽞뼹
+    Dim categoryName As String
+    Dim category As String
+    'Mapping
+    Dim userInfoJ As String
+    'Mapping
+    Dim userInfoE As String
+    
+    '긓긽깛긣
+    comment = "    /**" & vbCrLf & "     * TARGETCOMMENT" & vbCrLf & "     */" & vbCrLf
+    '?뽞뼹
+    categoryName = ""
+    category = "    public "
+    
+    categoryName = categoryName & Replace(comment, "TARGETCOMMENT", jpName)
+    
+    '긢???궕VARCHAR궻뤾뜃
+    If InStr(tableDataType, "VARCHAR") Then
+        category = category & changeEnName & "?: string;"
+    '긢???궕INTEGER궻뤾뜃
+    ElseIf InStr(tableDataType, "INTEGER") Then
+        category = category & changeEnName & "?: number;"
+    '긢???궕DATE궻뤾뜃
+    ElseIf InStr(tableDataType, "DATE") Then
+        category = category & changeEnName & "?: Date;"
+    '긢???궕TIMESTAMP궻뤾뜃
+    ElseIf InStr(tableDataType, "TIMESTAMP") Then
+        category = category & changeEnName & "?: Date;"
+    '긡???궕TEXT[]궻뤾뜃
+    ElseIf InStr(tableDataType, "TEXT[]") Then
+        category = category & changeEnName & "?: string[];"
+    End If
+    
+    createCategory = categoryName & category & vbCrLf & vbCrLf
+    
+    
+End Function
+Function createConstructor(changeEnName As String, tableDataType As String)
+
+    '?뽞뼹
+    Dim category As String
+    
+    '긢???궕VARCHAR궻뤾뜃
+    If InStr(tableDataType, "VARCHAR") Then
+        category = category & changeEnName & "?: string"
+    '긢???궕INTEGER궻뤾뜃
+    ElseIf InStr(tableDataType, "INTEGER") Then
+        category = category & changeEnName & "?: number"
+    '긢???궕DATE궻뤾뜃
+    ElseIf InStr(tableDataType, "DATE") Then
+        category = category & changeEnName & "?: Date"
+    '긢???궕TIMESTAMP궻뤾뜃
+    ElseIf InStr(tableDataType, "TIMESTAMP") Then
+        category = category & changeEnName & "?: Date"
+    End If
+    
+    createConstructor = category
+    
+End Function
+Function createInConstructor(changeEnName As String, tableDataType As String)
+
+    Dim thisCategory As String
+    
+    thisCategory = "        this." & changeEnName & " = " & changeEnName & ";" & vbCrLf
+    
+    createInConstructor = thisCategory
+    
+End Function
+Function makeModel(className As String, classNameE As String, typescript As String, totalCategory As String, totalConstructor As String, totalInConstructor As String)
+    
+    typescript = Replace(typescript, "TARGETCLASSCOMMENT", className)
+    typescript = Replace(typescript, "TARGETCLASSNAME", classNameE)
+    typescript = Replace(typescript, "TARGETCATEGORY", totalCategory)
+    typescript = Replace(typescript, "TARGETCONSTRUCTORPARAM", totalConstructor)
+    typescript = Replace(typescript, "TARGETINCATEGORY", totalInConstructor)
+    
+    makeModel = typescript
+End Function
+Sub exportSource(modelSource As String, exportPath As String, classNameE As String)
+    'react Folder
+    Dim reactFolder As String
+    'Typescript
+    Dim modelFolder As String
+    'TsFile
+    Dim tsFile As String
+    
+    '긲긅깑??긬긚먠믦
+    reactFolder = exportPath & "react\"
+    modelFolder = reactFolder & "model\"
+    
+    '긲?귽깑뼹먠믦
+    tsFile = modelFolder & classNameE & ".ts"
+    
+    MkDir (reactFolder)
+    MkDir (modelFolder)
+    
+    Open tsFile For Output As #1
+        Print #1, modelSource
+    Close
+    
+End Sub
